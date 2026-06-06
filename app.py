@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -120,7 +122,7 @@ def main_app():
     # ================= DASHBOARD =================
     elif page == "Dashboard":
 
-        st.title("Dashboard")
+        st.title("📊 Dashboard")
 
         import sqlite3
         conn = sqlite3.connect("plagiarism_new.db")
@@ -128,23 +130,79 @@ def main_app():
         df = pd.read_sql_query("SELECT * FROM results", conn)
 
         if df.empty:
-            st.warning("No data yet")
+            st.warning("No data available yet")
+
         else:
-            st.metric("Total Checks", len(df))
-            st.metric("Average Score", f"{df['final'].mean():.2f}")
+        # Statistics
+            low = len(df[df["final"] <= 0.3])
+            medium = len(df[(df["final"] > 0.3) & (df["final"] <= 0.6)])
+            high = len(df[df["final"] > 0.6])
 
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
+        # Metric Cards
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric("Total Checks", len(df))
+            col2.metric("Average Score", f"{df['final'].mean()*100:.1f}%")
+            col3.metric("Low Risk", low)
+            col4.metric("High Risk", high)
+
+        st.divider()
+
+        # Similarity Distribution
+        st.subheader("📈 Similarity Distribution")
+
+        fig1 = go.Figure()
+
+        fig1.add_trace(
+            go.Bar(
                 x=["Low", "Medium", "High"],
-                y=[
-                    len(df[df["final"] <= 0.3]),
-                    len(df[(df["final"] > 0.3) & (df["final"] <= 0.6)]),
-                    len(df[df["final"] > 0.6])
-                ]
-            ))
+                y=[low, medium, high]
+            )
+        )
 
-            st.plotly_chart(fig)
-            st.dataframe(df.tail(10))
+        fig1.update_layout(
+            height=400,
+            xaxis_title="Plagiarism Category",
+            yaxis_title="Number of Checks"
+        )
+
+        st.plotly_chart(fig1, use_container_width=True)
+
+        st.divider()
+
+        # Average Similarity Breakdown
+        st.subheader("📊 Similarity Breakdown")
+
+        fig2 = go.Figure()
+
+        fig2.add_trace(
+            go.Bar(
+                x=["Lexical", "N-Gram", "Semantic", "Final"],
+                y=[
+                    df["lexical"].mean() * 100,
+                    df["ngram"].mean() * 100,
+                    df["semantic"].mean() * 100,
+                    df["final"].mean() * 100
+                ]
+            )
+        )
+
+        fig2.update_layout(
+            height=450,
+            xaxis_title="Technique",
+            yaxis_title="Average Similarity (%)"
+        )
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+        st.divider()
+
+        st.subheader("📋 Recent Checks")
+
+        st.dataframe(
+            df.sort_values("id", ascending=False).head(10),
+            use_container_width=True
+        )
 
         conn.close()
 
